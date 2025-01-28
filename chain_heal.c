@@ -10,11 +10,6 @@
 #include <unistd.h>
 #include <math.h>  /* If you include this, you need to compile with -lm */
 
-typedef struct {
-    int num_jumps;
-    double power_reduction;
-    int initial_power;
-} GlobalInfo;
 
 /* Node for each person */
 typedef struct person
@@ -26,7 +21,19 @@ typedef struct person
   int adj_size; /* players within range*/
   struct person **adj;
   _Bool visited;
+  int healing; // maintain players healing during DFS call
 } Person;
+
+typedef struct {
+    int num_jumps;
+    double power_reduction;
+    int initial_power;
+    int best_healing;
+    int best_path_length;
+    Person **best_path; // store nodes in best_path everytime a new one is found
+    int *healing; // store corresponding healing in this array for each player
+} GlobalInfo;
+
 
 /* Returns the distance between two players 
    I knew I'd use Pythagorean theorm one day */
@@ -36,24 +43,62 @@ double distance (Person *p1, Person *p2) {
     return sqrt(dx*dx + dy*dy);
 } 
 
-void DFS(Person *player, int hop_number, GlobalInfo *globals) {
-    printf("Node: %s   Hop: %d \n", player->name, hop_number);
+void DFS(Person *player, int hop_number, GlobalInfo *globals, int total_healing, Person *from) {
+    //healing = initial spell * (1 - power reduction)^(hop_number) [ (hop_number - 1)?? ]
+    int healing = rint(globals->initial_power * pow(1-globals->power_reduction, hop_number-1));
+    // printf("Healing: %d\n", healing);
+    int original_PP = player->cur_PP; 
+
+
+    if (healing < player->max_PP - player->cur_PP) {
+        // printf("IF Player: %s, difference PP: %d\n", player->name, (player->max_PP - player->cur_PP));
+        total_healing += healing;
+        player->cur_PP += healing;
+        player->healing = healing;
+        player->prev = from; 
+    }
+    else {
+        // printf("ELSE Player: %s, difference PP: %d\n", player->name, (player->max_PP - player->cur_PP));
+        total_healing += player->max_PP - player->cur_PP;
+        player->cur_PP = player->max_PP;
+        player->healing = player->max_PP - player->cur_PP;
+        player->prev = from;
+    }
+
     /* base case */ 
     if (hop_number == globals->num_jumps) {
+        if (total_healing > globals->best_healing) {
+            globals->best_healing = total_healing; //set new best_healing
+
+            for (int i = globals->num_jumps - 1; i >= 0 && player != NULL; i--) {
+            globals->best_path[i] = player; 
+            globals->healing[i] = player->healing;
+
+            if (player->prev != NULL) {
+                // printf("Player prev: %s\n", player->prev->name);
+                player = player->prev;
+            } else {
+                // printf("Player prev: NULL\n");
+            }
+
+        }
+        }
+        player->cur_PP = original_PP;  // Wasn't resetting PP to orig value!!!!
         return;
     }
+
     /* recursive function */
     player->visited = 1;
     for (int i = 0; i < player->adj_size; i++) {
         if (player->adj[i]->visited == 0) {
-            // player->adj[i]->visited = 1;
-            DFS(player->adj[i], hop_number+1, globals);
-            
-            // player->adj[i]->visited = 0;
+            DFS(player->adj[i], hop_number+1, globals, total_healing, player);
         }
-    } player->visited = 0;
+    }
+    
+    player->cur_PP = original_PP;
+    player->visited = 0;
+    player->prev = from;
     // need to like unvisit or something what they said in lab so that you can enumerate all paths
-    // use call stack????
 }
 
 int main(int argc, char **argv) {
@@ -63,7 +108,10 @@ int main(int argc, char **argv) {
     int jump_range = atoi(argv[2]); /* range Chain Heal can jump*/
     globals->num_jumps = atoi(argv[3]);  /* Number of jumps the spell can make */
     globals->initial_power = atoi(argv[4]); /* Amount of healing to initial target*/
-    globals->power_reduction = atoi(argv[5]); /* Healing to subsequent targets is reduced by this every jump*/
+    globals->power_reduction = atof(argv[5]); /* Healing to subsequent targets is reduced by this every jump*/
+    globals->best_healing = 0;
+    globals->best_path = (Person **)malloc(globals->num_jumps * sizeof(Person *)); 
+    globals->healing = (int *)malloc(globals->num_jumps * sizeof(int)); 
 
     /* stdin format: x-coordiante, y-coordinate, current pp points, max pp points, player name*/
     int x, y, cur_PP, max_PP;
@@ -74,13 +122,15 @@ int main(int argc, char **argv) {
 
     /* Read in the first person */
     scanf("%d %d %d %d %s", &x, &y, &cur_PP, &max_PP, name);
-    Person *new_person = (Person *)malloc(sizeof(Person));
+        Person *new_person = (Person *)malloc(sizeof(Person));
         new_person->x = x;
         new_person->y = y;
         new_person->cur_PP = cur_PP;
         new_person->max_PP = max_PP;
+        new_person->healing = 0;
         new_person->name = (char *)malloc(strlen(name) + 1); /* Note to self: https://stackoverflow.com/questions/36075558/using-scanf-to-read-strings-into-an-array-of-strings */
-        strcpy(new_person->name, name);    
+        strcpy(new_person->name, name); 
+
         new_person->prev = NULL;
         prev_person = new_person;
         new_person->visited = 0;
@@ -93,8 +143,10 @@ int main(int argc, char **argv) {
         new_person->y = y;
         new_person->cur_PP = cur_PP;
         new_person->max_PP = max_PP;
+        new_person->healing = 0;
         new_person->name = (char *)malloc(strlen(name) + 1); 
         strcpy(new_person->name, name);   
+
         new_person->prev = prev_person;
         prev_person = new_person;
         new_person->visited = 0;
@@ -127,16 +179,6 @@ int main(int argc, char **argv) {
 
     /* Step 1 = Size of adjaceny list*/
 
-    /* Urgosa the Healer - can target himself too */
-    // player_array[0]->adj_size = 0;
-    // for (int i = 0; i < num_players; i++) {
-    //             double dist = distance(player_array[0], player_array[i]);
-    //             if (dist <= initial_range) {
-    //                 player_array[0]->adj_size++;
-    //             }
-    //         }
-
-    // Everyone else
     for (int i = 0; i < num_players; i++) {
         player_array[i]->adj_size = 0;
         for (int j = 0; j < num_players; j++) {
@@ -163,17 +205,6 @@ int main(int argc, char **argv) {
     
     /* Step 3 = Add nodes to adjacency list */
 
-    /* Urgosa the Healer */
-    // int index = 0;
-    // for (int i = 0; i < num_players; i++) {
-    //             double dist = distance(player_array[0], player_array[i]);
-    //             if (dist <= initial_range) {
-    //                 player_array[0]->adj[index] = player_array[i];
-    //             }
-    //             index++;
-    //         }
-
-    //Everyone else
     for (int i = 0; i < num_players; i++) {
         int index = 0;
         for (int j = 0; j < num_players; j++) {
@@ -188,23 +219,44 @@ int main(int argc, char **argv) {
     }
 
    /*check adjaceny list*/
-   for (int i = 0; i < num_players; i++) {
-       printf("%s: ", player_array[i]->name);
-       for (int j = 0; j < player_array[i]->adj_size; j++) {
-           printf("%s ", player_array[i]->adj[j]->name);
-       }
-       printf("\n\n");
-   }
+//    for (int i = 0; i < num_players; i++) {
+//        printf("%s: ", player_array[i]->name);
+//        for (int j = 0; j < player_array[i]->adj_size; j++) {
+//            printf("%s ", player_array[i]->adj[j]->name);
+//        }
+//        printf("\n\n");
+//    }
     
      /* DFS can only start for people who are within the initial range of Urgosa */
      /* Should still work if urgosa technically cant reach anyone from the initial jump but if another player can reach him in their jump range. How should I do this? */
-     player_array[0]->visited = 1;  // Mark Urgosa visited
 
-     for (int i = 0; i < num_players; i++) {  // Start from 1 to skip Urgosa
+    for (int i = 0; i < num_players; i++) {
         double dist = distance(player_array[0], player_array[i]);
         if (dist <= initial_range) {
-            DFS(player_array[i], 1, globals);  // Start DFS from players within Urgosa's range
+            DFS(player_array[i], 1, globals, 0, NULL);  // Start with total_healing = 0
         }
+    }   
+
+    for (int i = 0; i < globals->num_jumps; i++) {
+        printf("%s %d\n", globals->best_path[i]->name, globals->healing[i]);
     }
-        
+
+    printf("Total healing: %d\n", globals->best_healing);  // Print once at the end 
+
+    for (int i = 0; i < num_players; i++) {
+        if (player_array[i]->adj != NULL) {
+            free(player_array[i]->adj);
+        }
+        free(player_array[i]->name);
+        free(player_array[i]);
+    }
+    free(player_array);
+
+    free(globals->best_path);
+    free(globals->healing);
+    free(globals);
+
+
+    return 0;
+
 }
