@@ -37,7 +37,7 @@ double distance (Person *p1, Person *p2) {
 } 
 
 void DFS(Person *player, int hop_number, GlobalInfo *globals) {
-
+    printf("Node: %s   Hop: %d \n", player->name, hop_number);
     /* base case */ 
     if (hop_number == globals->num_jumps) {
         return;
@@ -46,8 +46,8 @@ void DFS(Person *player, int hop_number, GlobalInfo *globals) {
     for (int i = 0; i < player->adj_size; i++) {
         if (player->adj[i]->visited == 0) {
             player->adj[i]->visited = 1;
-            printf("Node: %s   Hop: %d \n", player->adj[i]->name, hop_number);
-            DFS(player->adj[i], hop_number + 1, globals);
+            DFS(player->adj[i], hop_number, globals);
+            player->adj[i]->visited = 0;
         }
     }
     // need to like unvisit or something what they said in lab so that you can enumerate all paths
@@ -127,18 +127,18 @@ int main(int argc, char **argv) {
     /* Step 1 = Size of adjaceny list*/
 
     /* Urgosa the Healer - can target himself too */
-    player_array[0]->adj_size = 0;
-    for (int i = 0; i < num_players; i++) {
-                double dist = distance(player_array[0], player_array[i]);
-                if (dist <= initial_range) {
-                    player_array[0]->adj_size++;
-                }
-            }
+    // player_array[0]->adj_size = 0;
+    // for (int i = 0; i < num_players; i++) {
+    //             double dist = distance(player_array[0], player_array[i]);
+    //             if (dist <= initial_range) {
+    //                 player_array[0]->adj_size++;
+    //             }
+    //         }
 
     // Everyone else
-    for (int i = 1; i < num_players; i++) {
+    for (int i = 0; i < num_players; i++) {
         player_array[i]->adj_size = 0;
-        for (int j = 1; j < num_players; j++) {
+        for (int j = 0; j < num_players; j++) {
             if (i != j) { /* Not itself */
                 double dist = distance(player_array[i], player_array[j]);
                 if (dist <= jump_range) {
@@ -163,19 +163,19 @@ int main(int argc, char **argv) {
     /* Step 3 = Add nodes to adjacency list */
 
     /* Urgosa the Healer */
-    int index = 0;
-    for (int i = 0; i < num_players; i++) {
-                double dist = distance(player_array[0], player_array[i]);
-                if (dist <= initial_range) {
-                    player_array[0]->adj[index] = player_array[i];
-                }
-                index++;
-            }
+    // int index = 0;
+    // for (int i = 0; i < num_players; i++) {
+    //             double dist = distance(player_array[0], player_array[i]);
+    //             if (dist <= initial_range) {
+    //                 player_array[0]->adj[index] = player_array[i];
+    //             }
+    //             index++;
+    //         }
 
     //Everyone else
-    for (int i = 1; i < num_players; i++) {
+    for (int i = 0; i < num_players; i++) {
         int index = 0;
-        for (int j = 1; j < num_players; j++) {
+        for (int j = 0; j < num_players; j++) {
             if (i != j) { /* Not itself */
                 double dist = distance(player_array[i], player_array[j]);
                 if (dist <= jump_range) {
@@ -186,17 +186,22 @@ int main(int argc, char **argv) {
         }
     }
 
-   /*check adjaceny list*/
+//    /*check adjaceny list*/
 //    for (int i = 0; i < num_players; i++) {
 //        printf("%s: ", player_array[i]->name);
 //        for (int j = 0; j < player_array[i]->adj_size; j++) {
 //            printf("%s ", player_array[i]->adj[j]->name);
 //        }
-//        printf("\n");
+//        printf("\n\n");
 //    }
     
-        /* DFS */
-    for (int i = 0; i < num_players; i++) {
-        DFS(player_array[i], 1, globals);
+     /* DFS can only start for people who are within the initial range of Urgosa */
+     /* Should still work if urgosa technically cant reach anyone from the initial jump but if another player can reach him in their jump range. How should I do this? */
+     for (int i = 0; i < num_players; i++) {  // Start from 1 to skip Urgosa
+        double dist = distance(player_array[0], player_array[i]);
+        if (dist <= initial_range) {
+            DFS(player_array[i], 1, globals);  // Start DFS from players within Urgosa's range
+        }
     }
+        
 }
