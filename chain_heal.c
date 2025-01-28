@@ -43,16 +43,17 @@ void DFS(Person *player, int hop_number, GlobalInfo *globals) {
         return;
     }
     /* recursive function */
+    player->visited = 1;
     for (int i = 0; i < player->adj_size; i++) {
         if (player->adj[i]->visited == 0) {
-            player->adj[i]->visited = 1;
-            DFS(player->adj[i], hop_number, globals);
-            player->adj[i]->visited = 0;
+            // player->adj[i]->visited = 1;
+            DFS(player->adj[i], hop_number+1, globals);
+            
+            // player->adj[i]->visited = 0;
         }
-    }
+    } player->visited = 0;
     // need to like unvisit or something what they said in lab so that you can enumerate all paths
     // use call stack????
-
 }
 
 int main(int argc, char **argv) {
@@ -186,17 +187,19 @@ int main(int argc, char **argv) {
         }
     }
 
-//    /*check adjaceny list*/
-//    for (int i = 0; i < num_players; i++) {
-//        printf("%s: ", player_array[i]->name);
-//        for (int j = 0; j < player_array[i]->adj_size; j++) {
-//            printf("%s ", player_array[i]->adj[j]->name);
-//        }
-//        printf("\n\n");
-//    }
+   /*check adjaceny list*/
+   for (int i = 0; i < num_players; i++) {
+       printf("%s: ", player_array[i]->name);
+       for (int j = 0; j < player_array[i]->adj_size; j++) {
+           printf("%s ", player_array[i]->adj[j]->name);
+       }
+       printf("\n\n");
+   }
     
      /* DFS can only start for people who are within the initial range of Urgosa */
      /* Should still work if urgosa technically cant reach anyone from the initial jump but if another player can reach him in their jump range. How should I do this? */
+     player_array[0]->visited = 1;  // Mark Urgosa visited
+
      for (int i = 0; i < num_players; i++) {  // Start from 1 to skip Urgosa
         double dist = distance(player_array[0], player_array[i]);
         if (dist <= initial_range) {
